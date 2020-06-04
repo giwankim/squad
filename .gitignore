@@ -1,6 +1,28 @@
+# Byte-compiled / optimized / DLL files
 __pycache__
-.texpadtmp/
-data/
-save/
+*.py[cod]
+*$py.class
+
+# VS Code
 .vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
 .env
+.venv
+env/
+venv/
+
+# Model
+*.bin
+*.pt
+*.pth
+save/
+
+# Data
+*.json
+*.csv
+*.txt
+data/
