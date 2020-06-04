@@ -11,9 +11,9 @@ dependencies:
   - spacy=2.0.16
   - tensorboard
   - tensorflow
-  - tensorboardX
   - tqdm
   - urllib3
-  - pytorch=1.0.0
-  - pip:
-    - torch==1.0.0
+  - pytorch=1.5
+  - cudatoolkit=10.2
+  - requests
+  
