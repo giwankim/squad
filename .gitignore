@@ -1,0 +1,10 @@
+# OSX Junk
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Unit test / coverage reports
+.cache/
+tests/__pycache__/*
+*.pytest_cache/
