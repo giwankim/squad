@@ -3,6 +3,9 @@ __pycache__
 *.py[cod]
 *$py.class
 
+# OSX Junk
+.DS_Store
+
 # VS Code
 .vscode/
 
