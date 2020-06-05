@@ -41,16 +41,17 @@ class SQuAD(data.Dataset):
         data_path (str): Path to .npz file containing pre-processed dataset.
         use_v2 (bool): Whether to use SQuAD 2.0 questions. Otherwise only use SQuAD 1.1.
     """
+
     def __init__(self, data_path, use_v2=True):
         super(SQuAD, self).__init__()
 
         dataset = np.load(data_path)
-        self.context_idxs = torch.from_numpy(dataset['context_idxs']).long()
-        self.context_char_idxs = torch.from_numpy(dataset['context_char_idxs']).long()
-        self.question_idxs = torch.from_numpy(dataset['ques_idxs']).long()
-        self.question_char_idxs = torch.from_numpy(dataset['ques_char_idxs']).long()
-        self.y1s = torch.from_numpy(dataset['y1s']).long()
-        self.y2s = torch.from_numpy(dataset['y2s']).long()
+        self.context_idxs = torch.from_numpy(dataset["context_idxs"]).long()
+        self.context_char_idxs = torch.from_numpy(dataset["context_char_idxs"]).long()
+        self.question_idxs = torch.from_numpy(dataset["ques_idxs"]).long()
+        self.question_char_idxs = torch.from_numpy(dataset["ques_char_idxs"]).long()
+        self.y1s = torch.from_numpy(dataset["y1s"]).long()
+        self.y2s = torch.from_numpy(dataset["y2s"]).long()
 
         if use_v2:
             # SQuAD 2.0: Use index 0 for no-answer token (token 1 = OOV)
@@ -67,19 +68,22 @@ class SQuAD(data.Dataset):
             self.y2s += 1
 
         # SQuAD 1.1: Ignore no-answer examples
-        self.ids = torch.from_numpy(dataset['ids']).long()
-        self.valid_idxs = [idx for idx in range(len(self.ids))
-                           if use_v2 or self.y1s[idx].item() >= 0]
+        self.ids = torch.from_numpy(dataset["ids"]).long()
+        self.valid_idxs = [
+            idx for idx in range(len(self.ids)) if use_v2 or self.y1s[idx].item() >= 0
+        ]
 
     def __getitem__(self, idx):
         idx = self.valid_idxs[idx]
-        example = (self.context_idxs[idx],
-                   self.context_char_idxs[idx],
-                   self.question_idxs[idx],
-                   self.question_char_idxs[idx],
-                   self.y1s[idx],
-                   self.y2s[idx],
-                   self.ids[idx])
+        example = (
+            self.context_idxs[idx],
+            self.context_char_idxs[idx],
+            self.question_idxs[idx],
+            self.question_char_idxs[idx],
+            self.y1s[idx],
+            self.y2s[idx],
+            self.ids[idx],
+        )
 
         return example
 
@@ -104,6 +108,7 @@ def collate_fn(examples):
     Adapted from:
         https://github.com/yunjey/seq2seq-dataloader
     """
+
     def merge_0d(scalars, dtype=torch.int64):
         return torch.tensor(scalars, dtype=dtype)
 
@@ -125,9 +130,15 @@ def collate_fn(examples):
         return padded
 
     # Group by tensor type
-    context_idxs, context_char_idxs, \
-        question_idxs, question_char_idxs, \
-        y1s, y2s, ids = zip(*examples)
+    (
+        context_idxs,
+        context_char_idxs,
+        question_idxs,
+        question_char_idxs,
+        y1s,
+        y2s,
+        ids,
+    ) = zip(*examples)
 
     # Merge into batch tensors
     context_idxs = merge_1d(context_idxs)
@@ -138,9 +149,15 @@ def collate_fn(examples):
     y2s = merge_0d(y2s)
     ids = merge_0d(ids)
 
-    return (context_idxs, context_char_idxs,
-            question_idxs, question_char_idxs,
-            y1s, y2s, ids)
+    return (
+        context_idxs,
+        context_char_idxs,
+        question_idxs,
+        question_char_idxs,
+        y1s,
+        y2s,
+        ids,
+    )
 
 
 class AverageMeter:
@@ -149,6 +166,7 @@ class AverageMeter:
     Adapted from:
         > https://github.com/pytorch/examples/blob/master/imagenet/main.py
     """
+
     def __init__(self):
         self.avg = 0
         self.sum = 0
@@ -177,6 +195,7 @@ class EMA:
         model (torch.nn.Module): Model with parameters whose EMA will be kept.
         decay (float): Decay rate for exponential moving average.
     """
+
     def __init__(self, model, decay):
         self.decay = decay
         self.shadow = {}
@@ -192,8 +211,7 @@ class EMA:
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                new_average = \
-                    (1.0 - decay) * param.data + decay * self.shadow[name]
+                new_average = (1.0 - decay) * param.data + decay * self.shadow[name]
                 self.shadow[name] = new_average.clone()
 
     def assign(self, model):
@@ -237,8 +255,10 @@ class CheckpointSaver:
             minimizes the metric.
         log (logging.Logger): Optional logger for printing information.
     """
-    def __init__(self, save_dir, max_checkpoints, metric_name,
-                 maximize_metric=False, log=None):
+
+    def __init__(
+        self, save_dir, max_checkpoints, metric_name, maximize_metric=False, log=None
+    ):
         super(CheckpointSaver, self).__init__()
 
         self.save_dir = save_dir
@@ -248,7 +268,9 @@ class CheckpointSaver:
         self.best_val = None
         self.ckpt_paths = queue.PriorityQueue()
         self.log = log
-        self._print(f"Saver will {'max' if maximize_metric else 'min'}imize {metric_name}...")
+        self._print(
+            f"Saver will {'max' if maximize_metric else 'min'}imize {metric_name}..."
+        )
 
     def is_best(self, metric_val):
         """Check whether `metric_val` is the best seen so far.
@@ -264,8 +286,9 @@ class CheckpointSaver:
             # No checkpoint saved yet
             return True
 
-        return ((self.maximize_metric and self.best_val < metric_val)
-                or (not self.maximize_metric and self.best_val > metric_val))
+        return (self.maximize_metric and self.best_val < metric_val) or (
+            not self.maximize_metric and self.best_val > metric_val
+        )
 
     def _print(self, message):
         """Print a message if logging is enabled."""
@@ -282,23 +305,22 @@ class CheckpointSaver:
             device (torch.device): Device where model resides.
         """
         ckpt_dict = {
-            'model_name': model.__class__.__name__,
-            'model_state': model.cpu().state_dict(),
-            'step': step
+            "model_name": model.__class__.__name__,
+            "model_state": model.cpu().state_dict(),
+            "step": step,
         }
         model.to(device)
 
-        checkpoint_path = os.path.join(self.save_dir,
-                                       f'step_{step}.pth.tar')
+        checkpoint_path = os.path.join(self.save_dir, f"step_{step}.pth.tar")
         torch.save(ckpt_dict, checkpoint_path)
-        self._print(f'Saved checkpoint: {checkpoint_path}')
+        self._print(f"Saved checkpoint: {checkpoint_path}")
 
         if self.is_best(metric_val):
             # Save the best model
             self.best_val = metric_val
-            best_path = os.path.join(self.save_dir, 'best.pth.tar')
+            best_path = os.path.join(self.save_dir, "best.pth.tar")
             shutil.copy(checkpoint_path, best_path)
-            self._print(f'New best checkpoint at step {step}...')
+            self._print(f"New best checkpoint at step {step}...")
 
         # Add checkpoint path to priority queue (lowest priority removed first)
         if self.maximize_metric:
@@ -313,7 +335,7 @@ class CheckpointSaver:
             _, worst_ckpt = self.ckpt_paths.get()
             try:
                 os.remove(worst_ckpt)
-                self._print(f'Removed checkpoint: {worst_ckpt}')
+                self._print(f"Removed checkpoint: {worst_ckpt}")
             except OSError:
                 # Avoid crashing if checkpoint has been removed or protected
                 pass
@@ -332,14 +354,14 @@ def load_model(model, checkpoint_path, gpu_ids, return_step=True):
         model (torch.nn.DataParallel): Model loaded from checkpoint.
         step (int): Step at which checkpoint was saved. Only if `return_step`.
     """
-    device = f"cuda:{gpu_ids[0]}" if gpu_ids else 'cpu'
+    device = f"cuda:{gpu_ids[0]}" if gpu_ids else "cpu"
     ckpt_dict = torch.load(checkpoint_path, map_location=device)
 
     # Build model, load parameters
-    model.load_state_dict(ckpt_dict['model_state'])
+    model.load_state_dict(ckpt_dict["model_state"])
 
     if return_step:
-        step = ckpt_dict['step']
+        step = ckpt_dict["step"]
         return model, step
 
     return model
@@ -355,10 +377,10 @@ def get_available_devices():
     gpu_ids = []
     if torch.cuda.is_available():
         gpu_ids += [gpu_id for gpu_id in range(torch.cuda.device_count())]
-        device = torch.device(f'cuda:{gpu_ids[0]}')
+        device = torch.device(f"cuda:{gpu_ids[0]}")
         torch.cuda.set_device(device)
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
 
     return device, gpu_ids
 
@@ -404,26 +426,28 @@ def visualize(tbx, pred_dict, eval_path, step, split, num_visuals):
 
     visual_ids = np.random.choice(list(pred_dict), size=num_visuals, replace=False)
 
-    with open(eval_path, 'r') as eval_file:
+    with open(eval_path, "r") as eval_file:
         eval_dict = json.load(eval_file)
     for i, id_ in enumerate(visual_ids):
-        pred = pred_dict[id_] or 'N/A'
+        pred = pred_dict[id_] or "N/A"
         example = eval_dict[str(id_)]
-        question = example['question']
-        context = example['context']
-        answers = example['answers']
+        question = example["question"]
+        context = example["context"]
+        answers = example["answers"]
 
-        gold = answers[0] if answers else 'N/A'
-        tbl_fmt = (f'- **Question:** {question}\n'
-                   + f'- **Context:** {context}\n'
-                   + f'- **Answer:** {gold}\n'
-                   + f'- **Prediction:** {pred}')
-        tbx.add_text(tag=f'{split}/{i+1}_of_{num_visuals}',
-                     text_string=tbl_fmt,
-                     global_step=step)
+        gold = answers[0] if answers else "N/A"
+        tbl_fmt = (
+            f"- **Question:** {question}\n"
+            + f"- **Context:** {context}\n"
+            + f"- **Answer:** {gold}\n"
+            + f"- **Prediction:** {pred}"
+        )
+        tbx.add_text(
+            tag=f"{split}/{i+1}_of_{num_visuals}", text_string=tbl_fmt, global_step=step
+        )
 
 
-def save_preds(preds, save_dir, file_name='predictions.csv'):
+def save_preds(preds, save_dir, file_name="predictions.csv"):
     """Save predictions `preds` to a CSV file named `file_name` in `save_dir`.
 
     Args:
@@ -436,16 +460,17 @@ def save_preds(preds, save_dir, file_name='predictions.csv'):
         save_path (str): Path where CSV file was saved.
     """
     # Validate format
-    if (not isinstance(preds, list)
-            or any(not isinstance(p, tuple) or len(p) != 3 for p in preds)):
-        raise ValueError('preds must be a list of tuples (id, start, end)')
+    if not isinstance(preds, list) or any(
+        not isinstance(p, tuple) or len(p) != 3 for p in preds
+    ):
+        raise ValueError("preds must be a list of tuples (id, start, end)")
 
     # Make sure predictions are sorted by ID
     preds = sorted(preds, key=lambda p: p[0])
 
     # Save to a CSV file
     save_path = os.path.join(save_dir, file_name)
-    np.savetxt(save_path, np.array(preds), delimiter=',', fmt='%d')
+    np.savetxt(save_path, np.array(preds), delimiter=",", fmt="%d")
 
     return save_path
 
@@ -464,14 +489,16 @@ def get_save_dir(base_dir, name, training, id_max=100):
         save_dir (str): Path to a new directory with a unique name.
     """
     for uid in range(1, id_max):
-        subdir = 'train' if training else 'test'
-        save_dir = os.path.join(base_dir, subdir, f'{name}-{uid:02d}')
+        subdir = "train" if training else "test"
+        save_dir = os.path.join(base_dir, subdir, f"{name}-{uid:02d}")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
             return save_dir
 
-    raise RuntimeError('Too many save directories created with the same name. \
-                       Delete old save directories or use another name.')
+    raise RuntimeError(
+        "Too many save directories created with the same name. \
+                       Delete old save directories or use another name."
+    )
 
 
 def get_logger(log_dir, name):
@@ -485,12 +512,14 @@ def get_logger(log_dir, name):
     Returns:
         logger (logging.Logger): Logger instance for logging events.
     """
+
     class StreamHandlerWithTQDM(logging.Handler):
         """Let `logging` print without breaking `tqdm` progress bars.
 
         See Also:
             > https://stackoverflow.com/questions/38543506
         """
+
         def emit(self, record):
             try:
                 msg = self.format(record)
@@ -506,7 +535,7 @@ def get_logger(log_dir, name):
     logger.setLevel(logging.DEBUG)
 
     # Log everything (i.e., DEBUG level and above) to a file
-    log_path = os.path.join(log_dir, 'log.txt')
+    log_path = os.path.join(log_dir, "log.txt")
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(logging.DEBUG)
 
@@ -515,11 +544,13 @@ def get_logger(log_dir, name):
     console_handler.setLevel(logging.INFO)
 
     # Create format for the logs
-    file_formatter = logging.Formatter('[%(asctime)s] %(message)s',
-                                       datefmt='%m.%d.%y %H:%M:%S')
+    file_formatter = logging.Formatter(
+        "[%(asctime)s] %(message)s", datefmt="%m.%d.%y %H:%M:%S"
+    )
     file_handler.setFormatter(file_formatter)
-    console_formatter = logging.Formatter('[%(asctime)s] %(message)s',
-                                          datefmt='%m.%d.%y %H:%M:%S')
+    console_formatter = logging.Formatter(
+        "[%(asctime)s] %(message)s", datefmt="%m.%d.%y %H:%M:%S"
+    )
     console_handler.setFormatter(console_formatter)
 
     # add the handlers to the logger
@@ -539,7 +570,7 @@ def torch_from_json(path, dtype=torch.float32):
     Returns:
         tensor (torch.Tensor): Tensor loaded from JSON file.
     """
-    with open(path, 'r') as fh:
+    with open(path, "r") as fh:
         array = np.array(json.load(fh))
 
     tensor = torch.from_numpy(array).type(dtype)
@@ -570,9 +601,8 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
         end_idxs (torch.Tensor): Hard predictions for end index.
             Shape (batch_size,)
     """
-    if p_start.min() < 0 or p_start.max() > 1 \
-            or p_end.min() < 0 or p_end.max() > 1:
-        raise ValueError('Expected p_start and p_end to have values in [0, 1]')
+    if p_start.min() < 0 or p_start.max() > 1 or p_end.min() < 0 or p_end.max() > 1:
+        raise ValueError("Expected p_start and p_end to have values in [0, 1]")
 
     # Compute pairwise probabilities
     p_start = p_start.unsqueeze(dim=2)
@@ -582,8 +612,9 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
     # Restrict to pairs (i, j) such that i <= j <= i + max_len - 1
     c_len, device = p_start.size(1), p_start.device
     is_legal_pair = torch.triu(torch.ones((c_len, c_len), device=device))
-    is_legal_pair -= torch.triu(torch.ones((c_len, c_len), device=device),
-                                diagonal=max_len)
+    is_legal_pair -= torch.triu(
+        torch.ones((c_len, c_len), device=device), diagonal=max_len
+    )
     if no_answer:
         # Index 0 is no-answer
         p_no_answer = p_joint[:, 0, 0].clone()
@@ -630,21 +661,21 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
         spans = eval_dict[str(qid)]["spans"]
         uuid = eval_dict[str(qid)]["uuid"]
         if no_answer and (y_start == 0 or y_end == 0):
-            pred_dict[str(qid)] = ''
-            sub_dict[uuid] = ''
+            pred_dict[str(qid)] = ""
+            sub_dict[uuid] = ""
         else:
             if no_answer:
                 y_start, y_end = y_start - 1, y_end - 1
             start_idx = spans[y_start][0]
             end_idx = spans[y_end][1]
-            pred_dict[str(qid)] = context[start_idx: end_idx]
-            sub_dict[uuid] = context[start_idx: end_idx]
+            pred_dict[str(qid)] = context[start_idx:end_idx]
+            sub_dict[uuid] = context[start_idx:end_idx]
     return pred_dict, sub_dict
 
 
 def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
     if not ground_truths:
-        return metric_fn(prediction, '')
+        return metric_fn(prediction, "")
     scores_for_ground_truths = []
     for ground_truth in ground_truths:
         score = metric_fn(prediction, ground_truth)
@@ -656,18 +687,17 @@ def eval_dicts(gold_dict, pred_dict, no_answer):
     avna = f1 = em = total = 0
     for key, value in pred_dict.items():
         total += 1
-        ground_truths = gold_dict[key]['answers']
+        ground_truths = gold_dict[key]["answers"]
         prediction = value
         em += metric_max_over_ground_truths(compute_em, prediction, ground_truths)
         f1 += metric_max_over_ground_truths(compute_f1, prediction, ground_truths)
         if no_answer:
             avna += compute_avna(prediction, ground_truths)
 
-    eval_dict = {'EM': 100. * em / total,
-                 'F1': 100. * f1 / total}
+    eval_dict = {"EM": 100.0 * em / total, "F1": 100.0 * f1 / total}
 
     if no_answer:
-        eval_dict['AvNA'] = 100. * avna / total
+        eval_dict["AvNA"] = 100.0 * avna / total
 
     return eval_dict
 
@@ -683,15 +713,15 @@ def normalize_answer(s):
     """Convert to lowercase and remove punctuation, articles and extra whitespace."""
 
     def remove_articles(text):
-        regex = re.compile(r'\b(a|an|the)\b', re.UNICODE)
-        return re.sub(regex, ' ', text)
+        regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)
+        return re.sub(regex, " ", text)
 
     def white_space_fix(text):
-        return ' '.join(text.split())
+        return " ".join(text.split())
 
     def remove_punc(text):
         exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
+        return "".join(ch for ch in text if ch not in exclude)
 
     def lower(text):
         return text.lower()
