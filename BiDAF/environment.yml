@@ -4,20 +4,21 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.6
+  - python=3.8
   - ujson
   - numpy
   - pip
-  - spacy=2.0.16
+  - spacy
   - tensorboard
-  - tensorflow
+  # - tensorflow
   - tqdm
   - urllib3
-  - pytorch=1.5.0
+  - pytorch
   - cudatoolkit=10.2
   - requests
   - black
   - nb_conda
   - jupyter_contrib_nbextensions
-  - nb_conda_kernels
+  - python-dotenv
+  - click
   
