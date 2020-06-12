@@ -22,6 +22,8 @@ venv/
 *.bin
 *.pt
 *.pth
+*.tar
+*.tfevents.*
 models/
 
 # Data

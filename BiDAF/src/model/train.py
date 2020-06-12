@@ -14,10 +14,10 @@ import torch.optim.lr_scheduler as sched
 import torch.utils.data as data
 import util
 
-from args import get_train_args
+from config.args import get_train_args
 from collections import OrderedDict
 from json import dumps
-from models import BiDAF
+from model.models import BiDAF
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load
