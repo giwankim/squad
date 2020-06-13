@@ -147,18 +147,54 @@ class BiDAFAttention(nn.Module):
 
     Bidirectional attention computes attention going in two directions:
     from context to question and from question to context. The output of
-    this layer is the concatention of [context, ]
+    this layer is the concatention of [context, c2q_attention, context *
+    c2q_attention, context * q2c_attention]. This concatenation allows the
+    attention vector at each timestep to flow through the attention layer
+    to the modeling layer. The output has shape (batch_size, context_len,
+    8 * hidden_size).
 
     Args:
-        hidden_size (int):
-        drop_prob (float):
+        hidden_size (int): Size of hidden activations.
+        drop_prob (float): Probability of zero-ing out activations.
     """
+
     def __init__(self, hidden_size, drop_prob=0.1):
         super(BiDAFAttention, self).__init__()
         self.drop_prob = drop_prob
+        self.hidden_size = hidden_size
+
+        self.c_weight = nn.Parameter(torch.zeros(hidden_size, 1))
+        self.q_weight = nn.Parameter(torch.zeros(hidden_size, 1))
+        self.cq_weight = nn.Parameter(torch.zeros(1, 1, hidden_size))
+        self.bias = nn.Parameter(torch.zeros(1))
+
+        self.reset_parameters()
+
 
     def forward(self, c, q, c_mask, q_mask):
+        """
+        Summary line.
+
+        Extended description of function.
+
+        Parameters
+        ----------
+        arg1 : int
+            Description of arg1
+        arg2 : str
+            Description of arg2
+
+        Returns
+        -------
+        int
+            Description of return value
+
+        """
         pass
 
     def get_similarity_matrix(self, c, q):
         pass
+
+    def reset_parameters(self):
+        for weight in (self.c_weight, self.q_weight, self.cq_weight):
+            nn.init.
