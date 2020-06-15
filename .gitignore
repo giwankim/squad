@@ -4,6 +4,13 @@
 # VS Code
 .vscode/
 
+# Environments
+.env
+.venv
+env/
+venv/
+.python-version
+
 # Unit test / coverage reports
 .cache/
 tests/__pycache__/*
