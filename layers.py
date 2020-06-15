@@ -4,6 +4,8 @@ Author:
     Chris Chute (chute@stanford.edu)
 """
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -53,10 +55,12 @@ class HighwayEncoder(nn.Module):
     """
     def __init__(self, num_layers, hidden_size):
         super(HighwayEncoder, self).__init__()
+        self.hidden_size = hidden_size
         self.transforms = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
                                          for _ in range(num_layers)])
         self.gates = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
                                     for _ in range(num_layers)])
+        self.reset_parameters()
 
     def forward(self, x):
         for gate, transform in zip(self.gates, self.transforms):
@@ -66,6 +70,18 @@ class HighwayEncoder(nn.Module):
             x = g * t + (1 - g) * x
 
         return x
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        # Initialize transform layer weights
+        for transform in self.transforms:
+            nn.init.kaiming_uniform_(transform.weight, nonlinearity="relu")
+            nn.init.uniform_(transform.bias, -stdv, stdv)
+
+        # Initialize gate bias to negative value to default to pass through
+        for gate in self.gates:
+            nn.init.kaiming_uniform_(gate.weight, nonlinearity="relu")
+            nn.init.constant_(gate.bias, -2.0)
 
 
 class RNNEncoder(nn.Module):
@@ -102,6 +118,7 @@ class RNNEncoder(nn.Module):
         x = pack_padded_sequence(x, lengths, batch_first=True)
 
         # Apply RNN
+        self.rnn.flatten_parameters()
         x, _ = self.rnn(x)  # (batch_size, seq_len, 2 * hidden_size)
 
         # Unpack and reverse sort
