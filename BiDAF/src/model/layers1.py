@@ -1,9 +1,14 @@
+"""Assortment of layer to use in models.py
+"""
+
 import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
+from util import masked_softmax
 
 
 class Embedding(nn.Module):
@@ -16,14 +21,18 @@ class Embedding(nn.Module):
         wordvecs (torch.Tensor): Pre-trained word vectors.
         hidden_size (int): Size of hidden activations.
         drop_prob (float): Dropout probability
+    Returns:
+        emb (torch.Tensor): Embedded representation of words.
     """
 
     def __init__(self, wordvecs, hidden_size, drop_prob):
         super(Embedding, self).__init__()
+        self.hidden_size = hidden_size
         self.drop_prob = drop_prob
+
         self.embed = nn.Embedding.from_pretrained(wordvecs)
         self.proj = nn.Linear(wordvecs.size(1), hidden_size, bias=False)
-        self.hwy = HighwayEncoder(2, hidden_size)
+        self.hwy = HighwayEncoder(num_layers=2, hidden_size=hidden_size)
 
     def forward(self, x):
         # Shape: (batch_size, seq_len, embed_size)
@@ -32,6 +41,8 @@ class Embedding(nn.Module):
 
         # Shape: (batch_size, seq_len, hidden_size)
         emb = self.proj(emb)
+
+        # Shape: (batch_size, seq_len, hidden_size)
         emb = self.hwy(emb)
 
         return emb
@@ -52,8 +63,8 @@ class HighwayEncoder(nn.Module):
 
     def __init__(self, num_layers, hidden_size):
         super(HighwayEncoder, self).__init__()
-        self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.hidden_size = hidden_size
 
         self.transforms = nn.ModuleList(
             [nn.Linear(hidden_size, hidden_size) for _ in range(num_layers)]
@@ -89,14 +100,16 @@ class HighwayEncoder(nn.Module):
 class RNNEncoder(nn.Module):
     """General purpose layer for encoding a sequence using a bidirectional RNN.
 
-    Encoded output is the RNN's hidden state at each position that has shape
-    `(batch_size, seq_len, hidden_size * 2)`.
+    Encoded output is the RNN's hidden state at each timestep.
 
     Args:
         input_size (int): Size of a single timestep in the input.
         hidden_size (int): Size of the RNN hidden state.
         num_layers (int): Number of layers of RNN cells to use.
         drop_prob (float): Probability of zero-ing out activations.
+    Returns:
+        enc_output (torch.Tensor): Encoded output tensor of shape
+            (batch_size, seq_len, hidden_size * 2)
     """
 
     def __init__(self, input_size, hidden_size, num_layers, drop_prob=0.0):
@@ -134,9 +147,10 @@ class RNNEncoder(nn.Module):
             enc_output, batch_first=True, total_len=orig_len
         )
         _, unsort_idx = sort_idx.sort(0)
+        # Shape: (batch_size, seq_len, 2 * hidden_size)
         enc_output = enc_output[unsort_idx]
 
-        # Apply dropout
+        # Apply dropout (RNN applies dropout after all but the last layer)
         enc_output = F.dropout(enc_output, self.drop_prob, self.training)
 
         return enc_output
@@ -170,31 +184,44 @@ class BiDAFAttention(nn.Module):
 
         self.reset_parameters()
 
-
     def forward(self, c, q, c_mask, q_mask):
+        """Takes a mini-batch of context and question hidden states and outputs
+        a combination of Context-to-Question (C2Q) attention and Question-to-Context
+        (Q2C) attention.
+
+        Args:
+            c (torch.Tensor): Mini-batch of context hidden state tensors.
+                Shape: (batch_size, c_len, 2 * hidden_size).
+            q (torch.Tensor): Mini-batch of question hidden state tensors.
+                Shape: (batch_size, q_len, 2 * hidden_size).
+        Returns:
+            g (torch.Tensor): 
         """
-        Summary line.
+        c_len = c.size(1)
+        q_len = q.size(1)
 
-        Extended description of function.
+        # Shape: (batch_size, c_len, q_len)
+        s = self.get_similarity(c, q)
+        # Shape: (batch_size, c_len, 1)
+        c_mask = c_mask.view(-1, c_len, 1)
+        # Shape: (batch_size, 1, q_len)
+        q_mask = q_mask.view(-1, 1, q_len)
 
-        Parameters
-        ----------
-        arg1 : int
-            Description of arg1
-        arg2 : str
-            Description of arg2
+        # Shape: (batch_size, c_len, q_len)
+        s1 = masked_softmax(s, c_mask, dim=2)
+        # Shape: (batch_size, c_len, q_len)
+        s2 = masked_softmax(s, q_mask, dim=1)
 
-        Returns
-        -------
-        int
-            Description of return value
+        # C2Q attention. Shape: (bs, c_len, q_len) x (bs, , 2 * h) --> (bs, , 2 * h)
+        a = torch.bmm(s1, q)
 
-        """
-        pass
+        # Q2C attention. Shape:
+        b = torch.bmm(s2, c)
 
     def get_similarity_matrix(self, c, q):
         pass
 
     def reset_parameters(self):
         for weight in (self.c_weight, self.q_weight, self.cq_weight):
-            nn.init.
+            nn.init.xavier_uniform(weight)
+        nn.init.constant_(self.bias, 0.0)
